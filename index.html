@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Score</title>
+
+<style>
+body{font-family:sans-serif;background:linear-gradient(135deg,#e0f2ff,#f8fbff);margin:0;padding:20px;text-align:center}
+.container{max-width:500px;margin:auto}
+.card{background:#fff;padding:18px;margin:12px 0;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.rank1{border-left:6px solid gold}
+.rank2{border-left:6px solid silver}
+.rank3{border-left:6px solid #cd7f32}
+button{background:#0077ff;color:#fff;border:none;border-radius:10px;padding:8px 14px;margin:5px}
+input,select{padding:8px;border-radius:8px;border:1px solid #ddd;margin:5px;width:90%}
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>🏆 Family Score</h1>
+
+<div id="familyGate">
+<h3>家族パスワード</h3>
+<input type="password" id="familyPass">
+<button onclick="checkFamily()">入る</button>
+</div>
+
+<div id="main" class="hidden">
+
+<h3>ランキング</h3>
+<div id="ranking"></div>
+
+<hr>
+
+<h3>管理者ログイン</h3>
+<input type="password" id="adminPassInput">
+<button onclick="login()">ログイン</button>
+
+<div id="adminPanel" class="hidden">
+<select id="userSelect"></select><br>
+<input type="number" id="points" placeholder="増減ポイント"><br>
+<input type="text" id="reason" placeholder="理由（必須）"><br>
+<button onclick="changeScore()">変更</button>
+<h4>履歴</h4>
+<div id="history"></div>
+</div>
+
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAJhDW-qF9hcGrlu70ythFbp2mOsqu9G-I",
+  authDomain: "family-score.firebaseapp.com",
+  projectId: "family-score",
+  storageBucket: "family-score.firebasestorage.app",
+  messagingSenderId: "24020011568",
+  appId: "1:24020011568:web:db45e1bc7ee92d40cc7bf5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const familyPassword="36789UNO";
+const adminPassword="nandesitteru";
+
+let isAdmin=false;
+let users=[];
+
+window.checkFamily=function(){
+if(document.getElementById("familyPass").value===familyPassword){
+document.getElementById("familyGate").classList.add("hidden");
+document.getElementById("main").classList.remove("hidden");
+loadUsers();
+loadHistory();
+}else{
+alert("パスワード違います");
+}
+}
+
+window.login=function(){
+if(document.getElementById("adminPassInput").value===adminPassword){
+isAdmin=true;
+document.getElementById("adminPanel").classList.remove("hidden");
+loadHistory();
+render();
+}else{
+alert("違います");
+}
+}
+
+async function loadUsers(){
+const snapshot=await getDocs(collection(db,"users"));
+users=[];
+snapshot.forEach(docSnap=>{
+users.push({id:docSnap.id,...docSnap.data()});
+});
+render();
+}
+
+function render(){
+let sorted=[...users].sort((a,b)=>b.score-a.score);
+let html="";
+sorted.forEach((u,i)=>{
+html+=`<div class="card">${i+1}位<br><b>${u.name}</b><br>${u.score}pt</div>`;
+});
+document.getElementById("ranking").innerHTML=html;
+
+if(isAdmin){
+let select=document.getElementById("userSelect");
+select.innerHTML="";
+users.forEach((u)=>{
+select.innerHTML+=`<option value="${u.id}">${u.name}</option>`;
+});
+}
+}
+
+window.changeScore=async function(){
+if(!isAdmin)return alert("管理者のみ");
+
+let id=document.getElementById("userSelect").value;
+let p=parseInt(document.getElementById("points").value);
+let r=document.getElementById("reason").value.trim();
+if(!r)return alert("理由必須");
+
+let user=users.find(u=>u.id===id);
+
+await updateDoc(doc(db,"users",id),{
+score:user.score+p
+});
+
+await addDoc(collection(db,"history"),{
+user:user.name,
+change:p,
+reason:r,
+date:new Date().toLocaleString()
+});
+
+alert("更新しました");
+loadUsers();
+loadHistory();
+}
+
+async function loadHistory(){
+if(!isAdmin) return; // ←これ超重要
+
+const snapshot=await getDocs(collection(db,"history"));
+let html="";
+
+snapshot.forEach(docSnap=>{
+let d=docSnap.data();
+html+=`${d.date} | ${d.user} | ${d.change}pt | ${d.reason}<br>`;
+});
+
+document.getElementById("history").innerHTML=html || "履歴なし";
+}
+</script>
+
+</body>
+</html>
