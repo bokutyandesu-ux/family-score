@@ -114,28 +114,52 @@ flex:1;
 </div>
 
 <script>
-const familyPassword="36789UNO";
 const adminPassword="nandesitteru";
 
-let isAdmin=false;
-
 let users=[
-{name:"兄",score:0},
-{name:"妹1",score:0},
-{name:"妹2",score:0},
-{name:"母",score:0},
-{name:"父",score:0}
+{name:"兄",score:0,password:"ani123"},
+{name:"妹1",score:0,password:"imo1"},
+{name:"妹2",score:0,password:"imo2"},
+{name:"母",score:0,password:"mama"},
+{name:"父",score:0,password:"papa"}
 ];
 
+let currentUser=null;
+let isAdmin=false;
 let history=[];
 
-function enter(){
-if(document.getElementById("familyPass").value===familyPassword){
-document.getElementById("main").classList.remove("hidden");
-render();
+function toggleLogin(){
+document.getElementById("loginBox").classList.toggle("hidden");
+renderLoginSelect();
+}
+
+function renderLoginSelect(){
+let sel=document.getElementById("loginUser");
+sel.innerHTML="";
+users.forEach(u=>{
+sel.innerHTML+=`<option>${u.name}</option>`;
+});
+}
+
+function login(){
+let name=document.getElementById("loginUser").value;
+let pass=document.getElementById("loginPass").value;
+let user=users.find(u=>u.name===name);
+
+if(user.password===pass){
+currentUser=name;
+document.getElementById("loginStatus").innerHTML="👤 "+name;
+document.getElementById("loginBox").classList.add("hidden");
 }else{
 alert("パスワード違います");
 }
+render();
+}
+
+function logout(){
+currentUser=null;
+document.getElementById("loginStatus").innerHTML="未ログイン";
+render();
 }
 
 function render(){
@@ -150,27 +174,44 @@ html+=`<div class="card ${rankClass}">${i+1}位<br><b>${u.name}</b><br>${u.score
 });
 document.getElementById("ranking").innerHTML=html;
 
-let selects=["fromUser","toUser","adminUser"];
-selects.forEach(id=>{
-let sel=document.getElementById(id);
-sel.innerHTML="";
+let toSel=document.getElementById("toUser");
+toSel.innerHTML="";
 users.forEach(u=>{
-sel.innerHTML+=`<option>${u.name}</option>`;
+if(u.name!==currentUser){
+toSel.innerHTML+=`<option>${u.name}</option>`;
+}
 });
+
+let adminSel=document.getElementById("adminUser");
+adminSel.innerHTML="";
+users.forEach(u=>{
+adminSel.innerHTML+=`<option>${u.name}</option>`;
 });
+
+if(currentUser){
+document.getElementById("transferBox").classList.remove("hidden");
+document.getElementById("needLogin").classList.add("hidden");
+}else{
+document.getElementById("transferBox").classList.add("hidden");
+document.getElementById("needLogin").classList.remove("hidden");
+}
+
+if(isAdmin){
+renderHistory();
+}
 }
 
 function transfer(){
-let from=document.getElementById("fromUser").value;
+if(!currentUser)return;
+
 let to=document.getElementById("toUser").value;
 let amount=parseInt(document.getElementById("amount").value);
 let reason=document.getElementById("reason").value.trim();
 
 if(!reason)return alert("理由必須");
-if(from===to)return alert("同じ人はダメ");
-if(amount<=0)return alert("正しい金額を入力");
+if(amount<=0)return alert("正しい金額");
 
-let fromUser=users.find(u=>u.name===from);
+let fromUser=users.find(u=>u.name===currentUser);
 let toUser=users.find(u=>u.name===to);
 
 if(fromUser.score<amount)return alert("残高不足");
@@ -178,7 +219,7 @@ if(fromUser.score<amount)return alert("残高不足");
 fromUser.score-=amount;
 toUser.score+=amount;
 
-history.push(`${new Date().toLocaleString()} | ${from} → ${to} | ${amount}pt | ${reason}`);
+history.unshift(`${new Date().toLocaleString()} | ${currentUser} → ${to} | ${amount}pt | ${reason}`);
 
 render();
 }
@@ -199,26 +240,31 @@ if(!isAdmin)return;
 let name=document.getElementById("adminUser").value;
 let amount=parseInt(document.getElementById("adminAmount").value);
 let reason=document.getElementById("adminReason").value.trim();
-
 if(!reason)return alert("理由必須");
 
 let user=users.find(u=>u.name===name);
 user.score+=amount;
 
-history.push(`${new Date().toLocaleString()} | 管理者変更 | ${name} | ${amount}pt | ${reason}`);
+history.unshift(`${new Date().toLocaleString()} | 管理者変更 | ${name} | ${amount}pt | ${reason}`);
 
 render();
-renderHistory();
 }
 
 function renderHistory(){
 let html="";
+if(history.length===0){
+html="履歴はまだありません";
+}else{
 history.forEach(h=>{
 html+=h+"<br>";
 });
+}
 document.getElementById("history").innerHTML=html;
 }
+
+render();
 </script>
 
 </body>
 </html>
+
