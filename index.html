@@ -10,7 +10,6 @@ body{
 font-family:sans-serif;
 margin:0;
 background:linear-gradient(135deg,#eaf6ff,#ffffff);
-text-align:center;
 }
 
 .container{
@@ -19,12 +18,20 @@ margin:auto;
 padding:20px;
 }
 
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+}
+
 .card{
 background:white;
 padding:15px;
 margin:10px 0;
 border-radius:15px;
 box-shadow:0 4px 12px rgba(0,0,0,0.08);
+text-align:center;
 }
 
 .rank1{border-left:6px solid gold;}
@@ -66,38 +73,46 @@ flex:1;
 <body>
 <div class="container">
 
-<h1>🏦 Family Coin</h1>
+<div class="topbar">
+<h2>🏦 Family Coin</h2>
+<div>
+<span id="loginStatus">未ログイン</span>
+<button onclick="toggleLogin()">ログイン</button>
+<button onclick="logout()">ログアウト</button>
+</div>
+</div>
 
-<h3>家族パスワード</h3>
-<input type="password" id="familyPass">
-<button onclick="enter()">入る</button>
-
-<div id="main" class="hidden">
+<div id="loginBox" class="hidden card">
+<select id="loginUser"></select><br>
+<input type="password" id="loginPass" placeholder="パスワード"><br>
+<button onclick="login()">入る</button>
+</div>
 
 <div class="flex">
 
 <div class="left">
-<h2>🏆 ランキング</h2>
+<h3>🏆 ランキング</h3>
 <div id="ranking"></div>
 </div>
 
 <div class="right">
 
-<h2>💸 送金</h2>
-<select id="fromUser"></select><br>
+<h3>💸 送金</h3>
+<div id="transferBox" class="hidden">
 <select id="toUser"></select><br>
 <input type="number" id="amount" placeholder="ポイント"><br>
 <input type="text" id="reason" placeholder="理由（必須）"><br>
 <button onclick="transfer()">送る</button>
+</div>
+<div id="needLogin">ログインすると送金できます</div>
 
 <hr>
 
 <h3>🔑 管理者ログイン（兄）</h3>
 <input type="password" id="adminPass">
-<button onclick="adminLogin()">ログイン</button>
+<button onclick="adminLogin()">管理ログイン</button>
 
 <div id="adminPanel" class="hidden">
-<h4>ポイント直接変更</h4>
 <select id="adminUser"></select><br>
 <input type="number" id="adminAmount" placeholder="増減ポイント"><br>
 <input type="text" id="adminReason" placeholder="理由（必須）"><br>
@@ -108,8 +123,6 @@ flex:1;
 </div>
 
 </div>
-</div>
-
 </div>
 </div>
 
@@ -148,7 +161,7 @@ let user=users.find(u=>u.name===name);
 
 if(user.password===pass){
 currentUser=name;
-document.getElementById("loginStatus").innerHTML="👤 "+name;
+document.getElementById("loginStatus").innerHTML="👤 "+name+" ログイン中";
 document.getElementById("loginBox").classList.add("hidden");
 }else{
 alert("パスワード違います");
@@ -246,7 +259,7 @@ let user=users.find(u=>u.name===name);
 user.score+=amount;
 
 history.unshift(`${new Date().toLocaleString()} | 管理者変更 | ${name} | ${amount}pt | ${reason}`);
-
+renderHistory();
 render();
 }
 
@@ -264,7 +277,5 @@ document.getElementById("history").innerHTML=html;
 
 render();
 </script>
-
 </body>
 </html>
-
