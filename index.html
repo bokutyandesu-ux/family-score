@@ -11,20 +11,17 @@ font-family:sans-serif;
 margin:0;
 background:linear-gradient(135deg,#eaf6ff,#ffffff);
 }
-
 .container{
 max-width:900px;
 margin:auto;
 padding:20px;
 }
-
 .topbar{
 display:flex;
 justify-content:space-between;
 align-items:center;
 margin-bottom:20px;
 }
-
 .card{
 background:white;
 padding:15px;
@@ -33,11 +30,9 @@ border-radius:15px;
 box-shadow:0 4px 12px rgba(0,0,0,0.08);
 text-align:center;
 }
-
 .rank1{border-left:6px solid gold;}
 .rank2{border-left:6px solid silver;}
 .rank3{border-left:6px solid #cd7f32;}
-
 button{
 background:#0077ff;
 color:white;
@@ -47,7 +42,6 @@ border-radius:8px;
 margin:5px;
 cursor:pointer;
 }
-
 input,select{
 padding:8px;
 border-radius:8px;
@@ -55,17 +49,10 @@ border:1px solid #ccc;
 margin:5px;
 width:90%;
 }
-
 .hidden{display:none;}
-
 @media(min-width:700px){
-.flex{
-display:flex;
-gap:20px;
-}
-.left,.right{
-flex:1;
-}
+.flex{display:flex;gap:20px;}
+.left,.right{flex:1;}
 }
 </style>
 </head>
@@ -89,7 +76,6 @@ flex:1;
 </div>
 
 <div class="flex">
-
 <div class="left">
 <h3>🏆 ランキング</h3>
 <div id="ranking"></div>
@@ -126,52 +112,34 @@ flex:1;
 </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAJhDW-qF9hcGrlu70ythFbp2mOsqu9G-I",
+  authDomain: "family-score.firebaseapp.com",
+  projectId: "family-score",
+  storageBucket: "family-score.firebasestorage.app",
+  messagingSenderId: "24020011568",
+  appId: "1:24020011568:web:db45e1bc7ee92d40cc7bf5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 const adminPassword="nandesitteru";
 
-let users=[
-{name:"兄",score:0,password:"nandesitteru"},
-{name:"妹1",score:0,password:"ONOAKARINGO"},
-{name:"妹2",score:0,password:"HIKARUTAIYOU"},
-{name:"母",score:0,password:"ONOHATIMITU"},
-{name:"父",score:0,password:"OOKINAYUUHI"}
-];
-
+let users=[];
 let currentUser=null;
 let isAdmin=false;
-let history=[];
 
-function toggleLogin(){
-document.getElementById("loginBox").classList.toggle("hidden");
-renderLoginSelect();
-}
-
-function renderLoginSelect(){
-let sel=document.getElementById("loginUser");
-sel.innerHTML="";
-users.forEach(u=>{
-sel.innerHTML+=`<option>${u.name}</option>`;
+async function loadUsers(){
+const snapshot=await getDocs(collection(db,"users"));
+users=[];
+snapshot.forEach(docSnap=>{
+users.push({id:docSnap.id,...docSnap.data()});
 });
-}
-
-function login(){
-let name=document.getElementById("loginUser").value;
-let pass=document.getElementById("loginPass").value;
-let user=users.find(u=>u.name===name);
-
-if(user.password===pass){
-currentUser=name;
-document.getElementById("loginStatus").innerHTML="👤 "+name+" ログイン中";
-document.getElementById("loginBox").classList.add("hidden");
-}else{
-alert("パスワード違います");
-}
-render();
-}
-
-function logout(){
-currentUser=null;
-document.getElementById("loginStatus").innerHTML="未ログイン";
 render();
 }
 
@@ -186,6 +154,10 @@ if(i==2)rankClass="rank3";
 html+=`<div class="card ${rankClass}">${i+1}位<br><b>${u.name}</b><br>${u.score} pt</div>`;
 });
 document.getElementById("ranking").innerHTML=html;
+
+let sel=document.getElementById("loginUser");
+sel.innerHTML="";
+users.forEach(u=>{ sel.innerHTML+=`<option>${u.name}</option>`; });
 
 let toSel=document.getElementById("toUser");
 toSel.innerHTML="";
@@ -208,75 +180,106 @@ document.getElementById("needLogin").classList.add("hidden");
 document.getElementById("transferBox").classList.add("hidden");
 document.getElementById("needLogin").classList.remove("hidden");
 }
-
-if(isAdmin){
-renderHistory();
-}
 }
 
-function transfer(){
-if(!currentUser)return;
+window.toggleLogin=function(){
+document.getElementById("loginBox").classList.toggle("hidden");
+}
 
-let to=document.getElementById("toUser").value;
-let amount=parseInt(document.getElementById("amount").value);
-let reason=document.getElementById("reason").value.trim();
+window.login = async function(){
 
-if(!reason)return alert("理由必須");
-if(amount<=0)return alert("正しい金額");
+let name = document.getElementById("loginUser").value;
+let pass = document.getElementById("loginPass").value;
 
-let fromUser=users.find(u=>u.name===currentUser);
-let toUser=users.find(u=>u.name===to);
+// ユーザーを探す
+let user = users.find(u => u.name === name);
 
-if(fromUser.score<amount)return alert("残高不足");
+if(!user){
+alert("ユーザーが見つかりません");
+return;
+}
 
-fromUser.score-=amount;
-toUser.score+=amount;
+// パスワード確認（Firestoreにpasswordフィールド必要）
+if(user.password !== pass){
+alert("パスワード違います");
+return;
+}
 
-history.unshift(`${new Date().toLocaleString()} | ${currentUser} → ${to} | ${amount}pt | ${reason}`);
+// ログイン成功
+currentUser = name;
+document.getElementById("loginStatus").innerHTML = "👤 " + name + " ログイン中";
+document.getElementById("loginBox").classList.add("hidden");
 
 render();
 }
 
-function adminLogin(){
+window.logout=function(){
+currentUser=null;
+document.getElementById("loginStatus").innerHTML="未ログイン";
+render();
+}
+
+window.transfer=async function(){
+let to=document.getElementById("toUser").value;
+let amount=parseInt(document.getElementById("amount").value);
+let reason=document.getElementById("reason").value.trim();
+if(!reason)return alert("理由必須");
+
+let fromUser=users.find(u=>u.name===currentUser);
+let toUser=users.find(u=>u.name===to);
+if(fromUser.score<amount)return alert("残高不足");
+
+await updateDoc(doc(db,"users",fromUser.id),{score:fromUser.score-amount});
+await updateDoc(doc(db,"users",toUser.id),{score:toUser.score+amount});
+
+await addDoc(collection(db,"history"),{
+date:new Date().toLocaleString(),
+text:`${currentUser} → ${to} | ${amount}pt | ${reason}`
+});
+
+loadUsers();
+if(isAdmin)loadHistory();
+}
+
+window.adminLogin=function(){
 if(document.getElementById("adminPass").value===adminPassword){
 isAdmin=true;
 document.getElementById("adminPanel").classList.remove("hidden");
-renderHistory();
+loadHistory();
 }else{
 alert("違います");
 }
 }
 
-function adminChange(){
-if(!isAdmin)return;
-
+window.adminChange=async function(){
 let name=document.getElementById("adminUser").value;
 let amount=parseInt(document.getElementById("adminAmount").value);
 let reason=document.getElementById("adminReason").value.trim();
 if(!reason)return alert("理由必須");
 
 let user=users.find(u=>u.name===name);
-user.score+=amount;
 
-history.unshift(`${new Date().toLocaleString()} | 管理者変更 | ${name} | ${amount}pt | ${reason}`);
-renderHistory();
-render();
-}
+await updateDoc(doc(db,"users",user.id),{score:user.score+amount});
 
-function renderHistory(){
-let html="";
-if(history.length===0){
-html="履歴はまだありません";
-}else{
-history.forEach(h=>{
-html+=h+"<br>";
+await addDoc(collection(db,"history"),{
+date:new Date().toLocaleString(),
+text:`管理者変更 | ${name} | ${amount}pt | ${reason}`
 });
+
+loadUsers();
+loadHistory();
 }
+
+async function loadHistory(){
+const snapshot=await getDocs(collection(db,"history"));
+let html="";
+snapshot.forEach(docSnap=>{
+html+=docSnap.data().text+"<br>";
+});
 document.getElementById("history").innerHTML=html;
 }
 
-render();
+loadUsers();
 </script>
 </body>
 </html>
-
