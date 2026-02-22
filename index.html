@@ -273,13 +273,25 @@ loadHistory();
 async function loadHistory(){
 const snapshot=await getDocs(collection(db,"history"));
 let html="";
+
 snapshot.forEach(docSnap=>{
-html+=docSnap.data().text+"<br>";
+const d = docSnap.data();
+
+html += `
+${d.date || ""}
+ | ${d.from || ""}
+ → ${d.to || ""}
+ | ${d.amount || 0}pt
+ | ${d.reason || ""}
+<br>
+`;
 });
-document.getElementById("history").innerHTML=html;
+
+document.getElementById("history").innerHTML = html || "履歴なし";
 }
 
 loadUsers();
 </script>
 </body>
 </html>
+
