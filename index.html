@@ -116,6 +116,7 @@ width:90%;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, updateDoc, addDoc } 
 from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyAJhDW-qF9hcGrlu70ythFbp2mOsqu9G-I",
   authDomain: "family-score.firebaseapp.com",
@@ -124,166 +125,126 @@ const firebaseConfig = {
   messagingSenderId: "24020011568",
   appId: "1:24020011568:web:db45e1bc7ee92d40cc7bf5"
 };
-let users = [];
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-  loadUsers();
-  
-const adminPassword="nandesitteru";
+let users = [];
+let currentUser = null;
+let isAdmin = false;
+const adminPassword = "nandesitteru";
 
 async function loadUsers(){
-  const querySnapshot = await getDocs(collection(db, "users"));
+  const snapshot = await getDocs(collection(db,"users"));
   users = [];
-  querySnapshot.forEach((docSnap) => {
-    users.push({
-      id: docSnap.id,
-      ...docSnap.data()
-    });
+  snapshot.forEach(docSnap=>{
+    users.push({id:docSnap.id,...docSnap.data()});
   });
   render();
 }
-let currentUser=null;
-let isAdmin=false;
-
 
 function render(){
-let sorted=[...users].sort((a,b)=>b.score-a.score);
-let html="";
-sorted.forEach((u,i)=>{
-let rankClass="";
-if(i==0)rankClass="rank1";
-if(i==1)rankClass="rank2";
-if(i==2)rankClass="rank3";
-html+=`<div class="card ${rankClass}">${i+1}位<br><b>${u.name}</b><br>${u.score} pt</div>`;
-});
-document.getElementById("ranking").innerHTML=html;
+  let sorted=[...users].sort((a,b)=>b.score-a.score);
+  let html="";
+  sorted.forEach((u,i)=>{
+    let rankClass="";
+    if(i==0)rankClass="rank1";
+    if(i==1)rankClass="rank2";
+    if(i==2)rankClass="rank3";
+    html+=`<div class="card ${rankClass}">${i+1}位<br><b>${u.name}</b><br>${u.score} pt</div>`;
+  });
+  document.getElementById("ranking").innerHTML=html;
 
-let sel=document.getElementById("loginUser");
-sel.innerHTML="";
-users.forEach(u=>{ sel.innerHTML+=`<option>${u.name}</option>`; });
+  let sel=document.getElementById("loginUser");
+  sel.innerHTML="";
+  users.forEach(u=>{ sel.innerHTML+=`<option>${u.name}</option>`; });
 
-let toSel=document.getElementById("toUser");
-toSel.innerHTML="";
-users.forEach(u=>{
-if(u.name!==currentUser){
-toSel.innerHTML+=`<option>${u.name}</option>`;
-}
-});
+  let toSel=document.getElementById("toUser");
+  toSel.innerHTML="";
+  users.forEach(u=>{
+    if(u.name!==currentUser){
+      toSel.innerHTML+=`<option>${u.name}</option>`;
+    }
+  });
 
-let adminSel=document.getElementById("adminUser");
-adminSel.innerHTML="";
-users.forEach(u=>{
-adminSel.innerHTML+=`<option>${u.name}</option>`;
-});
-
-if(currentUser){
-document.getElementById("transferBox").classList.remove("hidden");
-document.getElementById("needLogin").classList.add("hidden");
-}else{
-document.getElementById("transferBox").classList.add("hidden");
-document.getElementById("needLogin").classList.remove("hidden");
-}
+  if(currentUser){
+    document.getElementById("transferBox").classList.remove("hidden");
+    document.getElementById("needLogin").classList.add("hidden");
+  }else{
+    document.getElementById("transferBox").classList.add("hidden");
+    document.getElementById("needLogin").classList.remove("hidden");
+  }
 }
 
-window.toggleLogin=function(){
-document.getElementById("loginBox").classList.toggle("hidden");
+window.toggleLogin = function(){
+  document.getElementById("loginBox").classList.toggle("hidden");
 }
 
-window.login = async function(){
+window.login = function(){
+  let name=document.getElementById("loginUser").value;
+  let pass=document.getElementById("loginPass").value;
 
-let name = document.getElementById("loginUser").value;
-let pass = document.getElementById("loginPass").value;
+  let user=users.find(u=>u.name===name);
+  if(!user) return alert("ユーザーなし");
+  if(user.password!==pass) return alert("パスワード違う");
 
-// ユーザーを探す
-let user = users.find(u => u.name === name);
-
-if(!user){
-alert("ユーザーが見つかりません");
-return;
+  currentUser=name;
+  document.getElementById("loginStatus").innerHTML="👤 "+name+" ログイン中";
+  document.getElementById("loginBox").classList.add("hidden");
+  render();
 }
 
-// パスワード確認（Firestoreにpasswordフィールド必要）
-if(user.password !== pass){
-alert("パスワード違います");
-return;
+window.logout = function(){
+  currentUser=null;
+  document.getElementById("loginStatus").innerHTML="未ログイン";
+  render();
 }
 
-// ログイン成功
-currentUser = name;
-document.getElementById("loginStatus").innerHTML = "👤 " + name + " ログイン中";
-document.getElementById("loginBox").classList.add("hidden");
+window.transfer = async function(){
+  let to=document.getElementById("toUser").value;
+  let amount=parseInt(document.getElementById("amount").value);
+  let reason=document.getElementById("reason").value.trim();
+  if(!reason) return alert("理由必須");
 
-render();
+  let fromUser=users.find(u=>u.name===currentUser);
+  let toUser=users.find(u=>u.name===to);
+
+  if(fromUser.score<amount) return alert("残高不足");
+
+  await updateDoc(doc(db,"users",fromUser.id),{score:fromUser.score-amount});
+  await updateDoc(doc(db,"users",toUser.id),{score:toUser.score+amount});
+
+  await addDoc(collection(db,"history"),{
+    date:new Date().toLocaleString(),
+    text:`${currentUser} → ${to} | ${amount}pt | ${reason}`
+  });
+
+  loadUsers();
 }
 
-window.logout=function(){
-currentUser=null;
-document.getElementById("loginStatus").innerHTML="未ログイン";
-render();
-}
-
-window.transfer=async function(){
-let to=document.getElementById("toUser").value;
-let amount=parseInt(document.getElementById("amount").value);
-let reason=document.getElementById("reason").value.trim();
-if(!reason)return alert("理由必須");
-
-let fromUser=users.find(u=>u.name===currentUser);
-let toUser=users.find(u=>u.name===to);
-if(fromUser.score<amount)return alert("残高不足");
-
-await updateDoc(doc(db, "users", fromUser.id), {
-  score: fromUser.score - amount
-});
-
-await updateDoc(doc(db, "users", toUser.id), {
-  score: toUser.score + amount
-});
-
-await addDoc(collection(db,"history"),{
-date:new Date().toLocaleString(),
-text:`${currentUser} → ${to} | ${amount}pt | ${reason}`
-});
-
-loadUsers();
-if(isAdmin)loadHistory();
+async function loadHistory(){
+  const snapshot=await getDocs(collection(db,"history"));
+  let html="";
+  snapshot.forEach(docSnap=>{
+    const d=docSnap.data();
+    html+=`${d.date || ""} | ${d.text || ""}<br>`;
+  });
+  document.getElementById("history").innerHTML=html||"履歴なし";
 }
 
 window.adminLogin=function(){
-if(document.getElementById("adminPass").value===adminPassword){
-isAdmin=true;
-document.getElementById("adminPanel").classList.remove("hidden");
-loadHistory();
-}else{
-alert("違います");
-}
-}
-
-window.adminChange=async function(){
-let name=document.getElementById("adminUser").value;
-let amount=parseInt(document.getElementById("adminAmount").value);
-let reason=document.getElementById("adminReason").value.trim();
-if(!reason)return alert("理由必須");
-
-let user=users.find(u=>u.name===name);
-
-await updateDoc(doc(db,"users",user.id),{score:user.score+amount});
-
-await addDoc(collection(db,"history"),{
-  date: new Date().toLocaleString(),
-  text: `管理者変更 | ${name} | ${amount}pt | ${reason}`
-});
-
-loadUsers();
-loadHistory();
-}
-
+  if(document.getElementById("adminPass").value===adminPassword){
+    isAdmin=true;
+    document.getElementById("adminPanel").classList.remove("hidden");
+    loadHistory();
+  }else{
+    alert("違います");
+  }
 }
 
 loadUsers();
 </script>
 </body>
 </html>
+
 
