@@ -113,6 +113,30 @@ width:90%;
 </div>
 
 <script type="module">
+window.adminChange = async function(){
+
+  let name = document.getElementById("adminUser").value;
+  let amount = parseInt(document.getElementById("adminAmount").value);
+  let reason = document.getElementById("adminReason").value.trim();
+
+  if(!reason) return alert("理由必須");
+  if(isNaN(amount)) return alert("金額入れて");
+
+  let user = users.find(u=>u.name===name);
+  if(!user) return alert("ユーザーが見つかりません");
+
+  await updateDoc(doc(db,"users",user.id),{
+    score:user.score + amount
+  });
+
+  await addDoc(collection(db,"history"),{
+    date:new Date().toLocaleString(),
+    text:`管理者変更 | ${name} | ${amount}pt | ${reason}`
+  });
+
+  loadUsers();
+  loadHistory();
+}  
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, updateDoc, addDoc } 
 from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -271,6 +295,7 @@ loadUsers();
 </script>
 </body>
 </html>
+
 
 
 
