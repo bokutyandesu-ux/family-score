@@ -114,8 +114,8 @@ width:90%;
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+import { getFirestore, collection, getDocs, doc, updateDoc, addDoc } 
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const firebaseConfig = {
   apiKey: "AIzaSyAJhDW-qF9hcGrlu70ythFbp2mOsqu9G-I",
   authDomain: "family-score.firebaseapp.com",
@@ -124,24 +124,29 @@ const firebaseConfig = {
   messagingSenderId: "24020011568",
   appId: "1:24020011568:web:db45e1bc7ee92d40cc7bf5"
 };
+let users = [];
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+  loadUsers();
+  
 const adminPassword="nandesitteru";
 
-let users=[];
+async function loadUsers(){
+  const querySnapshot = await getDocs(collection(db, "users"));
+  users = [];
+  querySnapshot.forEach((docSnap) => {
+    users.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
+  });
+  render();
+}
 let currentUser=null;
 let isAdmin=false;
 
-async function loadUsers(){
-const snapshot=await getDocs(collection(db,"users"));
-users=[];
-snapshot.forEach(docSnap=>{
-users.push({id:docSnap.id,...docSnap.data()});
-});
-render();
-}
 
 function render(){
 let sorted=[...users].sort((a,b)=>b.score-a.score);
@@ -229,8 +234,13 @@ let fromUser=users.find(u=>u.name===currentUser);
 let toUser=users.find(u=>u.name===to);
 if(fromUser.score<amount)return alert("残高不足");
 
-await updateDoc(doc(db,"users",fromUser.id),{score:fromUser.score-amount});
-await updateDoc(doc(db,"users",toUser.id),{score:toUser.score+amount});
+await updateDoc(doc(db, "users", fromUser.id), {
+  score: fromUser.score - amount
+});
+
+await updateDoc(doc(db, "users", toUser.id), {
+  score: toUser.score + amount
+});
 
 await addDoc(collection(db,"history"),{
 date:new Date().toLocaleString(),
@@ -262,32 +272,14 @@ let user=users.find(u=>u.name===name);
 await updateDoc(doc(db,"users",user.id),{score:user.score+amount});
 
 await addDoc(collection(db,"history"),{
-date:new Date().toLocaleString(),
-text:`管理者変更 | ${name} | ${amount}pt | ${reason}`
+  date: new Date().toLocaleString(),
+  text: `管理者変更 | ${name} | ${amount}pt | ${reason}`
 });
 
 loadUsers();
 loadHistory();
 }
 
-async function loadHistory(){
-const snapshot=await getDocs(collection(db,"history"));
-let html="";
-
-snapshot.forEach(docSnap=>{
-const d = docSnap.data();
-
-html += `
-${d.date || ""}
- | ${d.from || ""}
- → ${d.to || ""}
- | ${d.amount || 0}pt
- | ${d.reason || ""}
-<br>
-`;
-});
-
-document.getElementById("history").innerHTML = html || "履歴なし";
 }
 
 loadUsers();
