@@ -113,33 +113,19 @@ width:90%;
 </div>
 
 <script type="module">
-window.adminChange = async function(){
-
-  let name = document.getElementById("adminUser").value;
-  let amount = parseInt(document.getElementById("adminAmount").value);
-  let reason = document.getElementById("adminReason").value.trim();
-
-  if(!reason) return alert("理由必須");
-  if(isNaN(amount)) return alert("金額入れて");
-
-  let user = users.find(u=>u.name===name);
-  if(!user) return alert("ユーザーが見つかりません");
-
-  await updateDoc(doc(db,"users",user.id),{
-    score:user.score + amount
-  });
-
-  await addDoc(collection(db,"history"),{
-    date:new Date().toLocaleString(),
-    text:`管理者変更 | ${name} | ${amount}pt | ${reason}`
-  });
-
-  loadUsers();
-  loadHistory();
-}  
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, addDoc } 
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  addDoc,
+  query,
+  orderBy,
+  serverTimestamp,
+  increment
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAJhDW-qF9hcGrlu70ythFbp2mOsqu9G-I",
@@ -158,64 +144,90 @@ let currentUser = null;
 let isAdmin = false;
 const adminPassword = "nandesitteru";
 
+
+// =======================
+// ユーザー読み込み
+// =======================
 async function loadUsers(){
   const snapshot = await getDocs(collection(db,"users"));
   users = [];
   snapshot.forEach(docSnap=>{
     users.push({id:docSnap.id,...docSnap.data()});
   });
-  render(
-
-    
-  );
+  render();
 }
 
+
+// =======================
+// 履歴読み込み（最新順）
+// =======================
+async function loadHistory(){
+  const q = query(
+    collection(db,"history"),
+    orderBy("createdAt","desc")
+  );
+
+  const snapshot = await getDocs(q);
+  let html = "";
+
+  snapshot.forEach(docSnap=>{
+    const d = docSnap.data();
+    html += `
+      ${d.date || ""} | ${d.text || ""}<br>
+    `;
+  });
+
+  document.getElementById("history").innerHTML = html || "履歴なし";
+}
+
+
+// =======================
+// 表示更新
+// =======================
 function render(){
 
-  // 🏆 ランキング
+  // ランキング
   let sorted=[...users].sort((a,b)=>b.score-a.score);
   let html="";
   sorted.forEach((u,i)=>{
-    let rankClass="";
-    if(i==0)rankClass="rank1";
-    if(i==1)rankClass="rank2";
-    if(i==2)rankClass="rank3";
-    html+=`<div class="card ${rankClass}">
-      ${i+1}位<br><b>${u.name}</b><br>${u.score} pt
-    </div>`;
+    html+=`
+      <div class="card">
+        ${i+1}位<br>
+        <b>${u.name}</b><br>
+        ${u.score} pt
+      </div>
+    `;
   });
   document.getElementById("ranking").innerHTML=html;
 
-  // 👤 ログイン選択
-  let loginSel=document.getElementById("loginUser");
+  // セレクト更新
+  const loginSel=document.getElementById("loginUser");
+  const toSel=document.getElementById("toUser");
+  const adminSel=document.getElementById("adminUser");
+
   if(loginSel){
     loginSel.innerHTML="";
     users.forEach(u=>{
-      loginSel.innerHTML+=`<option value="${u.name}">${u.name}</option>`;
+      loginSel.innerHTML+=`<option>${u.name}</option>`;
     });
   }
 
-  // 💸 送金選択
-  let toSel=document.getElementById("toUser");
   if(toSel){
     toSel.innerHTML="";
     users.forEach(u=>{
       if(u.name!==currentUser){
-        toSel.innerHTML+=`<option value="${u.name}">${u.name}</option>`;
+        toSel.innerHTML+=`<option>${u.name}</option>`;
       }
     });
   }
 
-  // 🔑 管理者選択 ← ここ重要
-  let adminSel=document.getElementById("adminUser");
   if(adminSel){
     adminSel.innerHTML="";
     users.forEach(u=>{
-      adminSel.innerHTML+=`<option value="${u.name}">${u.name}</option>`;
+      adminSel.innerHTML+=`<option>${u.name}</option>`;
     });
   }
 
-  // ログイン表示制御
   if(currentUser){
     document.getElementById("transferBox").classList.remove("hidden");
     document.getElementById("needLogin").classList.add("hidden");
@@ -225,15 +237,19 @@ function render(){
   }
 }
 
+
+// =======================
+// ログイン
+// =======================
 window.toggleLogin = function(){
   document.getElementById("loginBox").classList.toggle("hidden");
 }
 
 window.login = function(){
-  let name=document.getElementById("loginUser").value;
-  let pass=document.getElementById("loginPass").value;
+  const name=document.getElementById("loginUser").value;
+  const pass=document.getElementById("loginPass").value;
 
-  let user=users.find(u=>u.name===name);
+  const user=users.find(u=>u.name===name);
   if(!user) return alert("ユーザーなし");
   if(user.password!==pass) return alert("パスワード違う");
 
@@ -243,44 +259,55 @@ window.login = function(){
   render();
 }
 
-window.logout = function(){
+window.logout=function(){
   currentUser=null;
   document.getElementById("loginStatus").innerHTML="未ログイン";
   render();
 }
 
-window.transfer = async function(){
-  let to=document.getElementById("toUser").value;
-  let amount=parseInt(document.getElementById("amount").value);
-  let reason=document.getElementById("reason").value.trim();
-  if(!reason) return alert("理由必須");
 
-  let fromUser=users.find(u=>u.name===currentUser);
-  let toUser=users.find(u=>u.name===to);
+// =======================
+// 送金（完全安全版）
+// =======================
+window.transfer = async function(){
+
+  if(!currentUser) return alert("ログインしてください");
+
+  const to=document.getElementById("toUser").value;
+  const amount=parseInt(document.getElementById("amount").value);
+  const reason=document.getElementById("reason").value.trim();
+
+  if(!reason) return alert("理由必須");
+  if(isNaN(amount) || amount<=0) return alert("正しい金額を入れて");
+  if(currentUser===to) return alert("自分には送れない");
+
+  const fromUser=users.find(u=>u.name===currentUser);
+  const toUser=users.find(u=>u.name===to);
 
   if(fromUser.score<amount) return alert("残高不足");
 
-  await updateDoc(doc(db,"users",fromUser.id),{score:fromUser.score-amount});
-  await updateDoc(doc(db,"users",toUser.id),{score:toUser.score+amount});
+  await updateDoc(doc(db,"users",fromUser.id),{
+    score:increment(-amount)
+  });
+
+  await updateDoc(doc(db,"users",toUser.id),{
+    score:increment(amount)
+  });
 
   await addDoc(collection(db,"history"),{
+    createdAt:serverTimestamp(),
     date:new Date().toLocaleString(),
     text:`${currentUser} → ${to} | ${amount}pt | ${reason}`
   });
 
   loadUsers();
+  if(isAdmin) loadHistory();
 }
 
-async function loadHistory(){
-  const snapshot=await getDocs(collection(db,"history"));
-  let html="";
-  snapshot.forEach(docSnap=>{
-    const d=docSnap.data();
-    html+=`${d.date || ""} | ${d.text || ""}<br>`;
-  });
-  document.getElementById("history").innerHTML=html||"履歴なし";
-}
 
+// =======================
+// 管理者
+// =======================
 window.adminLogin=function(){
   if(document.getElementById("adminPass").value===adminPassword){
     isAdmin=true;
@@ -291,10 +318,38 @@ window.adminLogin=function(){
   }
 }
 
+window.adminChange = async function(){
+
+  const name=document.getElementById("adminUser").value;
+  const amount=parseInt(document.getElementById("adminAmount").value);
+  const reason=document.getElementById("adminReason").value.trim();
+
+  if(isNaN(amount) || amount===0) return alert("正しい金額");
+  if(!reason) return alert("理由必須");
+
+  const user=users.find(u=>u.name===name);
+
+  await updateDoc(doc(db,"users",user.id),{
+    score:increment(amount)
+  });
+
+  await addDoc(collection(db,"history"),{
+    createdAt:serverTimestamp(),
+    date:new Date().toLocaleString(),
+    text:`管理者変更 | ${name} | ${amount}pt | ${reason}`
+  });
+
+  loadUsers();
+  loadHistory();
+}
+
+
+// 初期起動
 loadUsers();
 </script>
 </body>
 </html>
+
 
 
 
